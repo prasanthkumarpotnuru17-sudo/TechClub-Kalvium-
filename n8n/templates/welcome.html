@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to Kalvium Tech Club</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: #0b0f19;
+      color: #e2e8f0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 30px auto;
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    .header {
+      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      padding: 40px 30px;
+      text-align: center;
+    }
+    .header h1 {
+      margin: 0;
+      color: #ffffff;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    .header p {
+      margin: 10px 0 0 0;
+      color: #e0e7ff;
+      font-size: 15px;
+    }
+    .content {
+      padding: 32px 30px;
+      line-height: 1.6;
+    }
+    .greeting {
+      font-size: 20px;
+      font-weight: 600;
+      color: #f8fafc;
+      margin-bottom: 16px;
+    }
+    .text {
+      color: #94a3b8;
+      font-size: 15px;
+      margin-bottom: 24px;
+    }
+    .feature-box {
+      background-color: #1e293b;
+      border-left: 4px solid #3b82f6;
+      border-radius: 6px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+    }
+    .feature-box h3 {
+      margin: 0 0 8px 0;
+      color: #38bdf8;
+      font-size: 16px;
+    }
+    .feature-box p {
+      margin: 0;
+      color: #cbd5e1;
+      font-size: 14px;
+    }
+    .cta-container {
+      text-align: center;
+      margin: 32px 0;
+    }
+    .cta-button {
+      display: inline-block;
+      background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+      color: #ffffff !important;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 15px;
+      padding: 14px 32px;
+      border-radius: 8px;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+    }
+    .footer {
+      background-color: #0f172a;
+      padding: 20px 30px;
+      text-align: center;
+      border-top: 1px solid #1e293b;
+      font-size: 12px;
+      color: #64748b;
+    }
+    .footer a {
+      color: #3b82f6;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎉 Welcome to Tech Club!</h1>
+      <p>Your journey in innovation, code, and collaboration starts here.</p>
+    </div>
+    <div class="content">
+      <div class="greeting">Hi {{ $json.fullName || $json.studentName }},</div>
+      <p class="text">
+        Welcome to the Tech Club! 🎉<br><br>
+        Thank you for signing up and becoming part of our community.
+      </p>
+
+      <div class="feature-box">
+        <h3>✨ Here you can:</h3>
+        <p>
+          • Register for workshops and hackathons<br>
+          • Receive event updates<br>
+          • Download participation certificates<br>
+          • Connect with fellow members
+        </p>
+      </div>
+
+      <div class="feature-box" style="border-left-color: #25d366; background-color: #0f291e;">
+        <h3 style="color: #25d366;">💬 Join our official WhatsApp Community:</h3>
+        <p style="margin-top: 6px;">
+          👉 <a href="{{ $json.whatsappGroupUrl || 'https://chat.whatsapp.com/your-group-link' }}" style="color: #25d366; font-weight: bold; text-decoration: underline;" target="_blank">Join WhatsApp Community Group</a>
+        </p>
+      </div>
+
+      <div class="cta-container">
+        <a href="https://techclub.kalvium.community/dashboard" class="cta-button" target="_blank">Explore Platform Dashboard →</a>
+      </div>
+
+      <p class="text" style="font-size: 14px; color: #94a3b8;">
+        If you have any questions, feel free to contact us at <a href="mailto:support@kalvium.community" style="color: #3b82f6;">support@kalvium.community</a>.
+      </p>
+
+      <p class="text" style="font-weight: 500; color: #f8fafc;">
+        We look forward to seeing you at our events!
+      </p>
+
+      <p class="text" style="margin-top: 20px; color: #cbd5e1;">
+        Regards,<br>
+        <strong>Tech Club Team</strong>
+      </p>
+    </div>
+    <div class="footer">
+      © {{ new Date().getFullYear() }} Kalvium Tech Club. All rights reserved.<br>
+      Automated via Master Notification Engine | <a href="https://techclub.kalvium.community">techclub.kalvium.community</a>
+    </div>
+  </div>
+</body>
+</html>

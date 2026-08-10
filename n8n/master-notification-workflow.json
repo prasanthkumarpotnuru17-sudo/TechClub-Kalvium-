@@ -1,0 +1,675 @@
+{
+  "name": "Master Notification Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "techclub/notifications",
+        "options": {}
+      },
+      "name": "Master Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        100,
+        500
+      ],
+      "webhookId": "master-notification-webhook-id"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst rawType = (body.notificationType || body.type || 'UNKNOWN').toString().toUpperCase();\nlet normalizedType = 'UNKNOWN';\nif (rawType.includes('WELCOME')) normalizedType = 'WELCOME';\nelse if (rawType.includes('REGISTRATION')) normalizedType = 'EVENT_REGISTRATION';\nelse if (rawType.includes('REMINDER')) normalizedType = 'REMINDER';\nelse if (rawType.includes('CERTIFICATE')) normalizedType = 'CERTIFICATE';\nelse if (rawType.includes('ANNOUNCEMENT')) normalizedType = 'ANNOUNCEMENT';\nelse if (rawType.includes('ATTENDANCE')) normalizedType = 'ATTENDANCE';\nelse if (rawType.includes('CANCEL')) normalizedType = 'CANCELLATION';\n\nconst eventObj = body.event || {};\nconst eventTitle = body.eventTitle || eventObj.title || body.eventName || 'Tech Club Event';\nconst eventDate = body.eventDate || eventObj.date || eventObj.eventDate || body.date || 'Upcoming';\nconst eventTime = body.eventTime || eventObj.time || eventObj.eventTime || body.time || 'Scheduled Time';\nconst venue = body.venue || eventObj.venue || eventObj.location || body.location || 'Campus Auditorium';\nconst studentName = body.studentName || body.fullName || body.name || 'Student Participant';\nconst email = body.email || body.userEmail || body.studentEmail || '';\n\nreturn {\n  json: {\n    ...body,\n    notificationId: body.notificationId || body.correlationId || `notif-${Date.now()}`,\n    correlationId: body.correlationId || body.notificationId || `NTF-${Date.now()}`,\n    notificationType: normalizedType,\n    type: (body.type || normalizedType).toLowerCase(),\n    userId: body.userId || null,\n    registrationId: body.registrationId || null,\n    eventId: body.eventId || null,\n    eventTitle,\n    eventDate,\n    eventTime,\n    venue,\n    studentName,\n    email,\n    receivedAt: new Date().toISOString()\n  }\n};"
+      },
+      "name": "Standardize Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.notificationType }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "WELCOME",
+              "output": 0
+            },
+            {
+              "value2": "EVENT_REGISTRATION",
+              "output": 1
+            },
+            {
+              "value2": "REMINDER",
+              "output": 2
+            },
+            {
+              "value2": "CERTIFICATE",
+              "output": 3
+            },
+            {
+              "value2": "ANNOUNCEMENT",
+              "output": 4
+            }
+          ]
+        },
+        "fallbackOutput": 5
+      },
+      "name": "Route Notification Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        560,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const body = $input.first().json;\nreturn {\n  json: {\n    ...body,\n    userId: body.userId || 'user_default',\n    email: body.email || body.userEmail || 'student@kalvium.community',\n    displayName: body.name || body.fullName || body.studentName || 'Member',\n    welcomeEmailSent: body.welcomeEmailSent || false\n  }\n};"
+      },
+      "name": "Fetch User Document",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.welcomeEmailSent }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Check Welcome Sent",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "return { json: { status: 'DUPLICATE_SKIPPED', message: 'Welcome email already sent' } };"
+      },
+      "name": "Log Duplicate Welcome Skipped",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "techclub@kalvium.community",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Welcome to Kalvium Tech Club Platform! 🚀",
+        "html": "=<!DOCTYPE html><html><body><h1>Welcome {{ $json.displayName }}!</h1><p>We are excited to have you in the Kalvium Tech Club community.</p></body></html>",
+        "options": {}
+      },
+      "name": "Send Welcome Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        220
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "return { json: { userId: $input.first().json.userId, welcomeEmailSent: true, updatedAt: new Date().toISOString() } };"
+      },
+      "name": "Update User Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1550,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "return { json: { status: 'SUCCESS', type: 'WELCOME', timestamp: new Date().toISOString() } };"
+      },
+      "name": "Update Log Success (Welcome)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const body = $input.first().json;\nreturn {\n  json: {\n    ...body,\n    registrationId: body.registrationId || `reg_${Date.now()}`,\n    email: body.email || body.studentEmail || 'student@kalvium.community',\n    name: body.studentName || body.name || 'Student',\n    confirmationEmailSent: body.confirmationEmailSent || false\n  }\n};"
+      },
+      "name": "Fetch Registration Document",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.confirmationEmailSent }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Check Confirmation Sent",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "return { json: { status: 'DUPLICATE_SKIPPED', message: 'Confirmation email already sent' } };"
+      },
+      "name": "Log Duplicate Registration Skipped",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const body = $input.first().json;\nreturn {\n  json: {\n    ...body,\n    eventId: body.eventId || 'event_123',\n    title: body.eventTitle || (body.event && body.event.title) || 'Tech Talk & Workshop',\n    date: body.eventDate || (body.event && body.event.date) || 'Upcoming',\n    time: body.eventTime || (body.event && body.event.time) || '10:00 AM',\n    venue: body.venue || (body.event && body.event.venue) || 'Tech Club Auditorium'\n  }\n};"
+      },
+      "name": "Fetch Event Document",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "techclub@kalvium.community",
+        "toEmail": "={{ $json.email }}",
+        "subject": "=Registration Confirmed: {{ $json.title }} 🎟️",
+        "html": "=<!DOCTYPE html><html><body><h2>Registration Confirmed for {{ $json.title }}</h2><p>Student Name: {{ $json.name }}</p><p>Date: {{ $json.date }}</p><p>Time: {{ $json.time }}</p><p>Venue: {{ $json.venue }}</p></body></html>",
+        "options": {}
+      },
+      "name": "Send Registration Confirmation Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        1550,
+        500
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "return { json: { registrationId: $input.first().json.registrationId, confirmationEmailSent: true, updatedAt: new Date().toISOString() } };"
+      },
+      "name": "Update Registration Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "return { json: { status: 'SUCCESS', type: 'EVENT_REGISTRATION', timestamp: new Date().toISOString() } };"
+      },
+      "name": "Update Log Success (Registration)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2050,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const body = $input.first().json;\nreturn {\n  json: {\n    ...body,\n    title: body.eventTitle || 'Upcoming Event',\n    email: body.email || body.studentEmail || 'student@kalvium.community',\n    name: body.studentName || body.name || 'Student'\n  }\n};"
+      },
+      "name": "Placeholder - REMINDER Branch",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "techclub@kalvium.community",
+        "toEmail": "={{ $json.email }}",
+        "subject": "=Reminder: {{ $json.title }} is starting soon! ⏰",
+        "html": "=<!DOCTYPE html><html><body><h2>Reminder: {{ $json.title }}</h2><p>Hi {{ $json.name }}, your event is starting soon. See you there!</p></body></html>",
+        "options": {}
+      },
+      "name": "Send Event Reminder Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        1050,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const body = $input.first().json;\nconst studentEmail = (body.studentEmail || body.email || '').trim().toLowerCase();\nconst studentName = body.studentName || body.name || 'Student';\nconst certificateNumber = body.certificateNumber || body.certificateId || `TC-${Date.now()}`;\nconst eventName = body.eventName || body.eventTitle || 'Tech Club Event';\nconst isValidEmail = studentEmail.includes('@') && studentEmail.includes('.');\n\nreturn {\n  json: {\n    ...body,\n    studentEmail,\n    studentName,\n    certificateNumber,\n    eventName,\n    isValidEmail\n  }\n};"
+      },
+      "name": "Validate Certificate Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isValidEmail }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Check Certificate Student Email",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1050,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "techclub@kalvium.community",
+        "toEmail": "={{ $json.studentEmail }}",
+        "subject": "=Your Certificate for {{ $json.eventName }} 🎓",
+        "html": "=<!DOCTYPE html><html><body><h2>Congratulations {{ $json.studentName }}!</h2><p>Your certificate for {{ $json.eventName }} is now ready.</p></body></html>",
+        "options": {}
+      },
+      "name": "Send Certificate Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        830
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "return { json: { status: 'INVALID_EMAIL', error: 'Invalid or missing email for certificate delivery' } };"
+      },
+      "name": "Log Invalid Email Error (Certificate)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        970
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "return { json: { status: 'SUCCESS', type: 'CERTIFICATE', timestamp: new Date().toISOString() } };"
+      },
+      "name": "Update Backend (Success)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1550,
+        830
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "return { json: { status: 'SUCCESS', type: 'CERTIFICATE_COMPLETED', timestamp: new Date().toISOString() } };"
+      },
+      "name": "Update Log Success (Certificate)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        830
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "return { json: { status: 'FAILED', type: 'CERTIFICATE_FAILED', timestamp: new Date().toISOString() } };"
+      },
+      "name": "Update Backend (Failure)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1550,
+        970
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "return { json: { status: 'LOGGED', type: 'ANNOUNCEMENT', timestamp: new Date().toISOString() } };"
+      },
+      "name": "Placeholder - ANNOUNCEMENT...",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "return { json: { status: 'ERROR', message: 'Unsupported notification type', timestamp: new Date().toISOString() } };"
+      },
+      "name": "Log Unsupported Type Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        1240
+      ]
+    }
+  ],
+  "connections": {
+    "Master Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Standardize Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Standardize Payload": {
+      "main": [
+        [
+          {
+            "node": "Route Notification Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Notification Type": {
+      "main": [
+        [
+          {
+            "node": "Fetch User Document",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Registration Document",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Placeholder - REMINDER Branch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validate Certificate Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Placeholder - ANNOUNCEMENT...",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Unsupported Type Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch User Document": {
+      "main": [
+        [
+          {
+            "node": "Check Welcome Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Welcome Sent": {
+      "main": [
+        [
+          {
+            "node": "Log Duplicate Welcome Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Welcome Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Welcome Email": {
+      "main": [
+        [
+          {
+            "node": "Update User Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update User Status": {
+      "main": [
+        [
+          {
+            "node": "Update Log Success (Welcome)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Registration Document": {
+      "main": [
+        [
+          {
+            "node": "Check Confirmation Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Confirmation Sent": {
+      "main": [
+        [
+          {
+            "node": "Log Duplicate Registration Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Event Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Event Document": {
+      "main": [
+        [
+          {
+            "node": "Send Registration Confirmation Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Registration Confirmation Email": {
+      "main": [
+        [
+          {
+            "node": "Update Registration Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Registration Status": {
+      "main": [
+        [
+          {
+            "node": "Update Log Success (Registration)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Placeholder - REMINDER Branch": {
+      "main": [
+        [
+          {
+            "node": "Send Event Reminder Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Certificate Payload": {
+      "main": [
+        [
+          {
+            "node": "Check Certificate Student Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Certificate Student Email": {
+      "main": [
+        [
+          {
+            "node": "Send Certificate Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Invalid Email Error (Certificate)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Certificate Email": {
+      "main": [
+        [
+          {
+            "node": "Update Backend (Success)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Backend (Success)": {
+      "main": [
+        [
+          {
+            "node": "Update Log Success (Certificate)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Invalid Email Error (Certificate)": {
+      "main": [
+        [
+          {
+            "node": "Update Backend (Failure)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

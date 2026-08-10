@@ -1,0 +1,248 @@
+{
+  "name": "Kalvium Tech Club - Clean Automation Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "techclub/notifications",
+        "options": {}
+      },
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        100,
+        300
+      ],
+      "webhookId": "techclub-notifications-webhook"
+    },
+    {
+      "parameters": {
+        "language": "javaScript",
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst rawType = (body.notificationType || body.type || 'UNKNOWN').toString().toUpperCase();\nlet normalizedType = 'UNKNOWN';\n\nif (rawType.includes('WELCOME')) normalizedType = 'WELCOME';\nelse if (rawType.includes('REGISTRATION')) normalizedType = 'EVENT_REGISTRATION';\nelse if (rawType.includes('REMINDER')) normalizedType = 'REMINDER';\nelse if (rawType.includes('CERTIFICATE')) normalizedType = 'CERTIFICATE';\nelse if (rawType.includes('ANNOUNCEMENT')) normalizedType = 'ANNOUNCEMENT';\n\nconst recipientEmail = body.email || body.userEmail || body.studentEmail || 'student@kalvium.community';\nconst studentName = body.studentName || body.fullName || body.name || 'Member';\nconst eventTitle = body.eventTitle || (body.event && body.event.title) || body.eventName || 'Tech Event';\nconst eventDate = body.eventDate || (body.event && body.event.date) || 'Upcoming';\nconst eventTime = body.eventTime || (body.event && body.event.time) || 'Scheduled Time';\nconst venue = body.venue || (body.event && body.event.venue) || 'Tech Club Auditorium';\n\nreturn {\n  json: {\n    ...body,\n    correlationId: body.correlationId || body.notificationId || `NTF-${Date.now()}`,\n    notificationType: normalizedType,\n    recipientEmail,\n    studentName,\n    eventTitle,\n    eventDate,\n    eventTime,\n    venue,\n    processedAt: new Date().toISOString()\n  }\n};"
+      },
+      "name": "Standardize Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.notificationType }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "WELCOME",
+              "output": 0
+            },
+            {
+              "value2": "EVENT_REGISTRATION",
+              "output": 1
+            },
+            {
+              "value2": "REMINDER",
+              "output": 2
+            },
+            {
+              "value2": "CERTIFICATE",
+              "output": 3
+            }
+          ]
+        },
+        "fallbackOutput": 4
+      },
+      "name": "Route Notification Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "techclub@kalvium.community",
+        "toEmail": "={{ $json.recipientEmail }}",
+        "subject": "=Welcome to Kalvium Tech Club, {{ $json.studentName }}! 🚀",
+        "html": "=<!DOCTYPE html><html><body style=\"font-family: Arial, sans-serif; background-color: #f8fafc; padding: 20px;\"><div style=\"max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; padding: 32px; border: 1px solid #e2e8f0;\"><h1 style=\"color: #2563eb; font-size: 24px;\">Welcome to Kalvium Tech Club! 🎉</h1><p style=\"color: #475569;\">Hi <strong>{{ $json.studentName }}</strong>,</p><p style=\"color: #475569;\">Your registration to the Tech Club platform is complete! Explore upcoming hackathons, tech talks, workshops, and build awesome projects with our community.</p><a href=\"https://techclub.kalvium.community\" style=\"display: inline-block; background: #2563eb; color: white; padding: 12px 24px; border-radius: 8px; font-weight: bold; text-decoration: none; margin-top: 16px;\">Explore Events</a></div></body></html>"
+      },
+      "name": "Send Welcome Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        750,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "techclub@kalvium.community",
+        "toEmail": "={{ $json.recipientEmail }}",
+        "subject": "=Registration Confirmed: {{ $json.eventTitle }} 🎟️",
+        "html": "=<!DOCTYPE html><html><body style=\"font-family: Arial, sans-serif; background-color: #f8fafc; padding: 20px;\"><div style=\"max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; padding: 32px; border: 1px solid #e2e8f0;\"><h1 style=\"color: #059669; font-size: 24px;\">Registration Confirmed! 🎟️</h1><p style=\"color: #475569;\">Hi <strong>{{ $json.studentName }}</strong>,</p><p style=\"color: #475569;\">You are successfully registered for <strong>{{ $json.eventTitle }}</strong>.</p><div style=\"background: #f1f5f9; border-radius: 12px; padding: 16px; margin: 20px 0;\"><p style=\"margin: 4px 0;\">📅 <strong>Date:</strong> {{ $json.eventDate }}</p><p style=\"margin: 4px 0;\">⏰ <strong>Time:</strong> {{ $json.eventTime }}</p><p style=\"margin: 4px 0;\">📍 <strong>Venue:</strong> {{ $json.venue }}</p></div><p style=\"color: #64748b; font-size: 13px;\">See you at the event!</p></div></body></html>"
+      },
+      "name": "Send Event Confirmation Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        750,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "techclub@kalvium.community",
+        "toEmail": "={{ $json.recipientEmail }}",
+        "subject": "=Reminder: {{ $json.eventTitle }} is starting soon! ⏰",
+        "html": "=<!DOCTYPE html><html><body style=\"font-family: Arial, sans-serif; background-color: #f8fafc; padding: 20px;\"><div style=\"max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; padding: 32px; border: 1px solid #e2e8f0;\"><h1 style=\"color: #d97706; font-size: 24px;\">Event Reminder ⏰</h1><p style=\"color: #475569;\">Hi <strong>{{ $json.studentName }}</strong>,</p><p style=\"color: #475569;\">This is a reminder that <strong>{{ $json.eventTitle }}</strong> is starting soon.</p><div style=\"background: #fffbeb; border-radius: 12px; padding: 16px; margin: 20px 0;\"><p style=\"margin: 4px 0;\">📅 <strong>Date:</strong> {{ $json.eventDate }}</p><p style=\"margin: 4px 0;\">⏰ <strong>Time:</strong> {{ $json.eventTime }}</p><p style=\"margin: 4px 0;\">📍 <strong>Venue:</strong> {{ $json.venue }}</p></div></div></body></html>"
+      },
+      "name": "Send Event Reminder Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        750,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "techclub@kalvium.community",
+        "toEmail": "={{ $json.recipientEmail }}",
+        "subject": "=Your Certificate for {{ $json.eventTitle }} 🎓",
+        "html": "=<!DOCTYPE html><html><body style=\"font-family: Arial, sans-serif; background-color: #f8fafc; padding: 20px;\"><div style=\"max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; padding: 32px; border: 1px solid #e2e8f0;\"><h1 style=\"color: #7c3aed; font-size: 24px;\">Congratulations! 🎓</h1><p style=\"color: #475569;\">Hi <strong>{{ $json.studentName }}</strong>,</p><p style=\"color: #475569;\">Thank you for attending <strong>{{ $json.eventTitle }}</strong>. Your official certificate of participation is now available on your profile dashboard!</p></div></body></html>"
+      },
+      "name": "Send Certificate Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        750,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Notification processed successfully\",\n  \"type\": \"{{ $json.notificationType }}\",\n  \"recipient\": \"{{ $json.recipientEmail }}\",\n  \"correlationId\": \"{{ $json.correlationId }}\"\n}",
+        "options": {}
+      },
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        350
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Standardize Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Standardize Payload": {
+      "main": [
+        [
+          {
+            "node": "Route Notification Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Notification Type": {
+      "main": [
+        [
+          {
+            "node": "Send Welcome Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Event Confirmation Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Event Reminder Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Certificate Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Welcome Email": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Event Confirmation Email": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Event Reminder Email": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Certificate Email": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
