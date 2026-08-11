@@ -40,6 +40,7 @@ export type AdminTab =
   | "attendance"
   | "certificates"
   | "announcements"
+  | "community_chat"
   | "contact_messages"
   | "analytics"
   | "reports"
@@ -63,6 +64,7 @@ export const navItems = [
   { id: "attendance" as AdminTab, label: "Attendance", icon: UserCheck, badge: "Live" },
   { id: "certificates" as AdminTab, label: "Certificates", icon: Award, badge: null },
   { id: "announcements" as AdminTab, label: "Announcements", icon: Bell, badge: "0" },
+  { id: "community_chat" as AdminTab, label: "Community Chat", icon: MessageSquare, badge: "Live" },
   { id: "contact_messages" as AdminTab, label: "Contact Messages", icon: MessageSquare, badge: "0 New" },
   { id: "analytics" as AdminTab, label: "Analytics", icon: BarChart3, badge: null },
   { id: "reports" as AdminTab, label: "Reports", icon: FileSpreadsheet, badge: null },

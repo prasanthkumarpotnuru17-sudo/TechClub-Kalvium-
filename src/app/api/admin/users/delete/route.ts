@@ -35,13 +35,13 @@ export async function POST(req: NextRequest) {
     const requesterUid = decodedToken.uid;
     const requesterEmail = (decodedToken.email || "").toLowerCase().trim();
 
-    // 2. Verify Requester Role (Must be Admin, Super Admin, or Coordinator)
+    // 2. Verify Requester Role (Must be SUPER_ADMIN ONLY)
     let isAuthorized = false;
     if (requesterEmail) {
       const teamSnap = await adminDb.collection("team_access").doc(requesterEmail).get();
       if (teamSnap.exists) {
         const role = teamSnap.data()?.role;
-        if (role === "admin" || role === "super_admin" || role === "coordinator") {
+        if (role === "super_admin") {
           isAuthorized = true;
         }
       }
@@ -50,13 +50,13 @@ export async function POST(req: NextRequest) {
     if (!isAuthorized) {
       // Fallback check user doc role
       const requesterDoc = await adminDb.collection("users").doc(requesterUid).get();
-      if (requesterDoc.exists && ["admin", "super_admin", "coordinator"].includes(requesterDoc.data()?.role)) {
+      if (requesterDoc.exists && requesterDoc.data()?.role === "super_admin") {
         isAuthorized = true;
       }
     }
 
     if (!isAuthorized) {
-      return NextResponse.json({ error: "Forbidden: Administrative privileges required." }, { status: 403 });
+      return NextResponse.json({ error: "Forbidden: Super Admin privileges required to delete users." }, { status: 403 });
     }
 
     // 3. Parse Target User Parameters

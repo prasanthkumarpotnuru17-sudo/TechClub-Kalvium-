@@ -22,11 +22,12 @@ import {
   Megaphone,
   Eye,
   MessageSquare,
-  Mail
+  Mail,
+  Trash2
 } from "lucide-react";
 import { eventService } from "@/services/eventService";
 import { announcementService } from "@/services/announcementService";
-import { subscribeRecentActivities } from "@/services/activityLogService";
+import { subscribeRecentActivities, clearAllActivityLogs } from "@/services/activityLogService";
 import { registrationService } from "@/services/registrationService";
 import { useAdminRegistrations } from "@/hooks/useAdminRegistrations";
 import { userService } from "@/services/userService";
@@ -478,7 +479,23 @@ export function DashboardOverview({ onNavigateTab, onOpenQuickAction }: Dashboar
               <Clock className="w-4 h-4 text-indigo-500" />
               Recent Activity Feed
             </h3>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <div className="flex items-center gap-2">
+              {recentActivity.length > 0 && (
+                <button
+                  onClick={async () => {
+                    if (confirm("Reset and clear all recent activity logs?")) {
+                      await clearAllActivityLogs();
+                    }
+                  }}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:underline px-2 py-0.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/40 transition-colors cursor-pointer"
+                  title="Clear all activity logs"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Clear Feed
+                </button>
+              )}
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            </div>
           </div>
 
           {recentActivity.length === 0 ? (

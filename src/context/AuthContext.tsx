@@ -112,6 +112,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } catch (authInitErr: any) {
           console.error("[AuthContext] Exception initializing user profile:", authInitErr);
+          if (authInitErr?.message?.includes("ACCOUNT_DELETED")) {
+            console.warn("[AuthContext] User account was deleted. Signing out deleted session...");
+            await logoutService().catch(() => {});
+            setUser(null);
+            setProfile(null);
+            setFirebaseUser(null);
+            setError("Your account has been deleted by an administrator.");
+          }
         }
       } else {
         setUser(null);

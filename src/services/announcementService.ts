@@ -1,5 +1,5 @@
 import { 
-  collection, doc, getDocs, getDoc, deleteDoc, onSnapshot, query, orderBy 
+  collection, doc, getDocs, getDoc, deleteDoc, onSnapshot, query, orderBy, updateDoc, increment 
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { safeSetDoc, safeUpdateDoc } from "@/lib/firestoreUtils";
@@ -64,5 +64,17 @@ export const announcementService = {
     const title = snap.exists() ? (snap.data() as AnnouncementItem).title : id;
     await deleteDoc(docRef);
     await logActivity("notification", "System Admin", `Deleted Announcement: ${title}`);
+  },
+
+  async incrementReadCount(id: string): Promise<void> {
+    if (!id) return;
+    try {
+      const docRef = doc(db, ANNOUNCEMENTS_COLLECTION, id);
+      await updateDoc(docRef, {
+        readCount: increment(1)
+      });
+    } catch (err) {
+      console.error("[AnnouncementService] Error incrementing read count:", err);
+    }
   }
 };

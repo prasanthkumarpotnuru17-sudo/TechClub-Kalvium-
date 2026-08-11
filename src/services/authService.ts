@@ -118,6 +118,15 @@ export async function ensureFirestoreUserDocument(
       return existingUser;
     }
 
+    // Check if this is an explicit signup flow vs passive page load
+    const isExplicitSignup = isRegistrationFlow || (typeof window !== "undefined" && sessionStorage.getItem("is_explicit_signup") === "true");
+
+    if (!isExplicitSignup) {
+      console.warn(`[authService] User document missing for UID ${fUser.uid} on passive login. Treating account as deleted.`);
+      throw new Error("ACCOUNT_DELETED: User document does not exist in database.");
+    }
+
+    // Fresh signup flow: Create brand-new Member profile with default role = member
     const newUserDoc: User & Record<string, any> = {
       uid: fUser.uid,
       id: fUser.uid,
@@ -125,7 +134,7 @@ export async function ensureFirestoreUserDocument(
       fullName: fUser.displayName || fUser.email?.split("@")[0] || "",
       email: fUser.email || "",
       avatar: fUser.photoURL || undefined,
-      role: userRole as any,
+      role: "member", // Default role for fresh registration is member
       participantType: "Student",
       profileCompletion: 100,
       requiredFieldsCompleted: true,
@@ -145,7 +154,7 @@ export async function ensureFirestoreUserDocument(
     await safeSetDoc(userRef, newUserDoc, { merge: true });
 
     // Trigger Welcome Email Notification ONLY if explicitly executing within a new registration workflow
-    if (isRegistrationFlow && fUser.email) {
+    if (fUser.email) {
       console.log(`[Registration Flow] Brand-new user doc created for ${fUser.uid}. Triggering Welcome Email API...`);
       triggerWelcomeNotificationApi({
         userId: fUser.uid,
@@ -155,7 +164,10 @@ export async function ensureFirestoreUserDocument(
     }
 
     return newUserDoc;
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.message?.includes("ACCOUNT_DELETED")) {
+      throw err;
+    }
     console.error("Error creating initial Firestore user document:", err);
     
     // Fallback role check in catch block

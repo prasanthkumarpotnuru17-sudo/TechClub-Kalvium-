@@ -3,6 +3,36 @@ import { adminAuth, adminDb, isAdminSdkConfigured } from "@/lib/firebaseAdmin";
 
 export async function POST(req: NextRequest) {
   try {
+    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+    let requesterEmail = "";
+    let requesterRole = "";
+
+    // 1. Verify Authorization Token if provided
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split("Bearer ")[1]?.trim();
+      if (token && isAdminSdkConfigured && adminAuth && adminDb) {
+        try {
+          const decoded = await adminAuth.verifyIdToken(token);
+          requesterEmail = (decoded.email || "").toLowerCase().trim();
+          
+          if (requesterEmail) {
+            const teamSnap = await adminDb.collection("team_access").doc(requesterEmail).get();
+            if (teamSnap.exists) {
+              requesterRole = teamSnap.data()?.role || "";
+            }
+          }
+          if (!requesterRole && decoded.uid) {
+            const userSnap = await adminDb.collection("users").doc(decoded.uid).get();
+            if (userSnap.exists) {
+              requesterRole = userSnap.data()?.role || "";
+            }
+          }
+        } catch (authErr) {
+          console.warn("[Admin Role API] Token verification warning:", authErr);
+        }
+      }
+    }
+
     const body = await req.json();
     const { targetEmail, role, userId } = body;
 
@@ -22,7 +52,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Server-side Admin SDK update
+    // 2. Strict Role Promotion Authorization Rules:
+    // - Only SUPER_ADMIN can assign the super_admin role.
+    // - Only SUPER_ADMIN can modify an existing super_admin's role.
+    if (isAdminSdkConfigured && adminDb) {
+      const targetTeamSnap = await adminDb.collection("team_access").doc(normalizedEmail).get();
+      const existingTargetRole = targetTeamSnap.exists ? targetTeamSnap.data()?.role : null;
+
+      const isAssigningSuperAdmin = role === "super_admin";
+      const isModifyingSuperAdmin = existingTargetRole === "super_admin";
+
+      if (isAssigningSuperAdmin || isModifyingSuperAdmin) {
+        if (requesterRole !== "super_admin") {
+          return NextResponse.json(
+            { error: "Forbidden: Only a Super Admin can assign or alter Super Admin roles." },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
+    // 3. Server-side Admin SDK update
     if (isAdminSdkConfigured && adminDb) {
       const nowIso = new Date().toISOString();
 

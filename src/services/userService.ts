@@ -7,16 +7,63 @@ import { UserItem } from "@/lib/services/mockData";
 const USERS_COLLECTION = "users";
 
 export const userService = {
+  // Helper to deduplicate raw users list by email and clean up redundant Firestore documents
+  deduplicateAndCleanUsers(rawUsers: UserItem[]): UserItem[] {
+    const rolePriority: Record<string, number> = {
+      super_admin: 4,
+      admin: 3,
+      coordinator: 2,
+      member: 1,
+    };
+
+    const emailMap = new Map<string, UserItem>();
+    const duplicateIdsToDelete: string[] = [];
+
+    for (const u of rawUsers) {
+      const emailKey = (u.email || "").toLowerCase().trim();
+      if (!emailKey) {
+        emailMap.set(u.id, u);
+        continue;
+      }
+
+      if (!emailMap.has(emailKey)) {
+        emailMap.set(emailKey, u);
+      } else {
+        const existing = emailMap.get(emailKey)!;
+        const existingScore = rolePriority[existing.role] || 1;
+        const currentScore = rolePriority[u.role] || 1;
+
+        if (currentScore > existingScore) {
+          duplicateIdsToDelete.push(existing.id);
+          emailMap.set(emailKey, u);
+        } else {
+          duplicateIdsToDelete.push(u.id);
+        }
+      }
+    }
+
+    if (duplicateIdsToDelete.length > 0) {
+      console.warn(`[userService] Cleaning up ${duplicateIdsToDelete.length} duplicate user documents from Firestore:`, duplicateIdsToDelete);
+      duplicateIdsToDelete.forEach((dupId) => {
+        deleteDoc(doc(db, USERS_COLLECTION, dupId)).catch((err) => {
+          console.warn(`[userService] Could not delete duplicate user doc ${dupId}:`, err);
+        });
+      });
+    }
+
+    return Array.from(emailMap.values());
+  },
+
   // Real-time listener for all users
   subscribeUsers(callback: (users: UserItem[]) => void, onError?: (error: any) => void): () => void {
     const q = query(collection(db, USERS_COLLECTION));
     return onSnapshot(q, (snapshot) => {
-      const users: UserItem[] = snapshot.docs.map((docSnap) => {
+      const rawUsers: UserItem[] = snapshot.docs.map((docSnap) => {
         const data = docSnap.data();
         return {
           id: docSnap.id,
           name: data.name || data.displayName || "User",
-          email: data.email || "",
+          email: (data.email || "").trim(),
           avatar: data.avatar || data.photoURL || undefined,
           role: data.role || "member",
           department: data.department || "",
@@ -27,7 +74,8 @@ export const userService = {
           status: data.status || "Active",
         } as UserItem;
       });
-      callback(users);
+      const cleanUsers = this.deduplicateAndCleanUsers(rawUsers);
+      callback(cleanUsers);
     }, (error) => {
       console.error("Error subscribing to users:", error);
       if (onError) onError(error);
@@ -38,12 +86,12 @@ export const userService = {
   // Get users once
   async getUsers(): Promise<UserItem[]> {
     const snap = await getDocs(collection(db, USERS_COLLECTION));
-    return snap.docs.map((docSnap) => {
+    const rawUsers: UserItem[] = snap.docs.map((docSnap) => {
       const data = docSnap.data();
       return {
         id: docSnap.id,
         name: data.name || data.displayName || "User",
-        email: data.email || "",
+        email: (data.email || "").trim(),
         avatar: data.avatar || data.photoURL || undefined,
         role: data.role || "member",
         department: data.department || "",
@@ -54,6 +102,7 @@ export const userService = {
         status: data.status || "Active",
       } as UserItem;
     });
+    return this.deduplicateAndCleanUsers(rawUsers);
   },
 
   // Update user role in Firestore
@@ -82,8 +131,25 @@ export const userService = {
     }
   },
 
-  // Delete user document (Admin panel direct deletion)
-  async deleteUser(id: string): Promise<void> {
+  // Delete user document (Admin panel deletion via Server API)
+  async deleteUser(id: string, email?: string, idToken?: string): Promise<void> {
+    if (idToken) {
+      const res = await fetch("/api/admin/users/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ targetUserId: id, targetEmail: email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to delete user account.");
+      }
+      return;
+    }
+
+    // Direct Firestore deletion fallback
     await deleteDoc(doc(db, USERS_COLLECTION, id));
     try {
       await deleteDoc(doc(db, "profiles", id));
@@ -125,12 +191,12 @@ export const userService = {
       where("role", "in", ["admin", "super_admin", "coordinator"])
     );
     const snap = await getDocs(q);
-    return snap.docs.map((docSnap) => {
+    const rawUsers: UserItem[] = snap.docs.map((docSnap) => {
       const data = docSnap.data();
       return {
         id: docSnap.id,
         name: data.name || data.displayName || "User",
-        email: data.email || "",
+        email: (data.email || "").trim(),
         avatar: data.avatar || data.photoURL || undefined,
         role: data.role || "member",
         department: data.department || "",
@@ -141,5 +207,6 @@ export const userService = {
         status: data.status || "Active",
       } as UserItem;
     });
+    return this.deduplicateAndCleanUsers(rawUsers);
   }
 };

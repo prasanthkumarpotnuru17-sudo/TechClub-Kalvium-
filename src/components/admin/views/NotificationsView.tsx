@@ -113,7 +113,7 @@ export function NotificationsView({ onOpenCreateModal }: NotificationsViewProps)
                 <div className="text-right">
                   <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 justify-end">
                     <CheckCircle className="w-3.5 h-3.5" />
-                    {n.readCount} Reads
+                    {n.readCount || 0} Reads
                   </span>
                   <p className="text-[10px] text-gray-400">By Club Admin</p>
                 </div>

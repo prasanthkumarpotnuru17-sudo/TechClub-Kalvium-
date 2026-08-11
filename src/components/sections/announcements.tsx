@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Megaphone, Bell, Calendar, Eye, Sparkles, ChevronRight, CheckCircle2, Pin, X } from "lucide-react";
 import { AnnouncementItem } from "@/lib/services/mockData";
 import { announcementService } from "@/services/announcementService";
+import { getReadNotificationIds, markNotificationAsRead } from "@/lib/services/notificationReadStorage";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,15 @@ export function AnnouncementsSection({ limit, showViewAllButton = false }: Annou
     });
     return () => unsub();
   }, []);
+
+  const handleSelectAnnouncement = (ann: AnnouncementItem) => {
+    setActiveAnnouncement(ann);
+    const readIds = getReadNotificationIds();
+    if (!readIds.includes(ann.id)) {
+      markNotificationAsRead(ann.id);
+      announcementService.incrementReadCount(ann.id);
+    }
+  };
 
   const categories = ["All", "New Event", "Certificates", "Recruitment", "General"];
 
@@ -84,7 +94,7 @@ export function AnnouncementsSection({ limit, showViewAllButton = false }: Annou
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: idx * 0.1 }}
-              onClick={() => setActiveAnnouncement(ann)}
+              onClick={() => handleSelectAnnouncement(ann)}
               className={cn(
                 "p-6 rounded-3xl bg-white border transition-all cursor-pointer relative flex flex-col justify-between group shadow-md shadow-slate-200/40 hover:shadow-xl hover:-translate-y-1",
                 ann.isImportant
@@ -179,7 +189,7 @@ export function AnnouncementsSection({ limit, showViewAllButton = false }: Annou
                 <span>Audience: <strong className="text-slate-800">{activeAnnouncement.targetAudience}</strong></span>
                 <span className="flex items-center gap-1 text-blue-600 font-bold">
                   <Eye className="w-4 h-4" />
-                  {activeAnnouncement.readCount} Reads
+                  {activeAnnouncement.readCount || 0} Reads
                 </span>
               </div>
             </motion.div>

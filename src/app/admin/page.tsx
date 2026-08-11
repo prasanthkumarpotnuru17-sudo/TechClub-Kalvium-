@@ -17,6 +17,8 @@ import { ReportsView } from "@/components/admin/views/ReportsView";
 import { SettingsView } from "@/components/admin/views/SettingsView";
 import { TeamView } from "@/components/admin/views/TeamView";
 
+import { CommunityChatView } from "@/components/admin/views/CommunityChatView";
+
 // Modals
 import { EventModal } from "@/components/admin/modals/EventModal";
 import { NotificationModal } from "@/components/admin/modals/NotificationModal";
@@ -261,6 +263,8 @@ export default function AdminPage() {
               {activeTab === "announcements" && (
                 <NotificationsView onOpenCreateModal={() => setIsNotifModalOpen(true)} />
               )}
+
+              {activeTab === "community_chat" && <CommunityChatView />}
 
               {activeTab === "contact_messages" && <ContactMessagesView />}
 

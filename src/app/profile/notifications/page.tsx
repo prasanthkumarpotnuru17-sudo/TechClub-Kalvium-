@@ -90,6 +90,7 @@ export default function NotificationsPage() {
     if (!item.read) {
       const updated = markNotificationAsRead(item.id, userId);
       setReadIds(updated);
+      announcementService.incrementReadCount(item.id);
     }
     // 2. Toggle expand details
     setExpandedId((prev) => (prev === item.id ? null : item.id));
@@ -97,15 +98,23 @@ export default function NotificationsPage() {
 
   const handleMarkSingleRead = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    const updated = markNotificationAsRead(id, userId);
-    setReadIds(updated);
+    if (!readIds.includes(id)) {
+      const updated = markNotificationAsRead(id, userId);
+      setReadIds(updated);
+      announcementService.incrementReadCount(id);
+    }
   };
 
   const handleConfirmMarkAll = () => {
+    const unreadAnns = announcements.filter((a) => !readIds.includes(a.id));
     const allIds = announcements.map((a) => a.id);
     const updated = markAllNotificationsAsRead(allIds, userId);
     setReadIds(updated);
     setIsConfirmModalOpen(false);
+
+    unreadAnns.forEach((ann) => {
+      announcementService.incrementReadCount(ann.id);
+    });
   };
 
   const filtered = notifications.filter((n) => filter === "All" || !n.read);

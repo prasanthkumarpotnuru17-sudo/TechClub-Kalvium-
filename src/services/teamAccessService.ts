@@ -108,15 +108,6 @@ export const teamAccessService = {
     const normalized = this.normalizeEmail(email);
     console.log("[teamAccessService] normalized email:", normalized);
 
-    // Primary Super Admin / Platform Architect email check
-    if (normalized === "prasanthkumarpotnuru17@gmail.com") {
-      if (uid) {
-        this.seedAdminUid(uid, normalized, "super_admin").catch(() => {});
-        this.addOrUpdateTeamAccess(normalized, "super_admin").catch(() => {});
-      }
-      return "super_admin";
-    }
-
     try {
       const docRef = doc(db, COLLECTION_NAME, normalized);
       const docSnap = await getDoc(docRef);
@@ -154,6 +145,58 @@ export const teamAccessService = {
   },
 
   // ─────────────────────────────────────────────────────────────────
+  // Verify if an authenticated email/UID is an official Tech Club member
+  // ─────────────────────────────────────────────────────────────────
+  async isTechClubMember(email?: string | null, uid?: string | null): Promise<boolean> {
+    if (!email && !uid) return false;
+    const normalized = email ? this.normalizeEmail(email) : "";
+
+    try {
+      // 1. Check team_access collection
+      if (normalized) {
+        const docRef = doc(db, COLLECTION_NAME, normalized);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists() && docSnap.data()?.status === "active") {
+          return true;
+        }
+      }
+
+      // 2. Check users collection for super_admin/admin/coordinator role or explicit member flag
+      if (uid) {
+        const userSnap = await getDoc(doc(db, "users", uid));
+        if (userSnap.exists()) {
+          const data = userSnap.data();
+          const role = (data?.role || "").toLowerCase();
+          if (["super_admin", "admin", "coordinator"].includes(role)) return true;
+          if (data?.isTechClubMember === true || data?.isClubMember === true) return true;
+        }
+      }
+
+      // 3. Check teams collection
+      if (normalized) {
+        const teamsSnap = await getDocs(query(collection(db, "teams"), where("email", "==", normalized)));
+        if (!teamsSnap.empty) return true;
+      }
+    } catch (err) {
+      console.error("[teamAccessService] Error checking Tech Club membership:", err);
+    }
+
+    return false;
+  },
+
+  async getAuthHeaders(): Promise<Record<string, string>> {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    try {
+      const { auth } = await import("@/lib/firebase");
+      if (auth.currentUser) {
+        const token = await auth.currentUser.getIdToken();
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+    } catch (_) {}
+    return headers;
+  },
+
+  // ─────────────────────────────────────────────────────────────────
   // 2. addOrUpdateTeamAccess(email, role, userId?)
   // ─────────────────────────────────────────────────────────────────
   async addOrUpdateTeamAccess(
@@ -163,13 +206,19 @@ export const teamAccessService = {
   ): Promise<void> {
     const normalized = this.normalizeEmail(email);
     try {
-      await fetch("/api/admin/role", {
+      const headers = await this.getAuthHeaders();
+      const res = await fetch("/api/admin/role", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ targetEmail: normalized, role, userId }),
       });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update role via API.");
+      }
     } catch (apiErr) {
       console.warn("[teamAccessService] API role endpoint notice:", apiErr);
+      throw apiErr;
     }
 
     try {
@@ -199,13 +248,19 @@ export const teamAccessService = {
   ): Promise<void> {
     const normalized = this.normalizeEmail(email);
     try {
-      await fetch("/api/admin/role", {
+      const headers = await this.getAuthHeaders();
+      const res = await fetch("/api/admin/role", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ targetEmail: normalized, role, userId }),
       });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update role via API.");
+      }
     } catch (apiErr) {
       console.warn("[teamAccessService] API role endpoint notice:", apiErr);
+      throw apiErr;
     }
 
     try {
@@ -220,14 +275,6 @@ export const teamAccessService = {
 
   // ─────────────────────────────────────────────────────────────────
   // 4. updateStatus(email, status)
-  //
-  // REVOCATION PATH — setting status to "inactive":
-  //   Deletes admin_uids/{uid} immediately so the Firestore list rule
-  //   (isAdminUid) stops passing. No manual cleanup required.
-  //
-  // RE-ACTIVATION — setting status back to "active":
-  //   admin_uids will be re-seeded automatically on the member's
-  //   next login via fetchEffectiveRole.
   // ─────────────────────────────────────────────────────────────────
   async updateStatus(email: string, status: "active" | "inactive"): Promise<void> {
     const normalized = this.normalizeEmail(email);
@@ -237,30 +284,29 @@ export const teamAccessService = {
     });
 
     if (status === "inactive") {
-      // Immediately revoke UID-based list access
       await revokeAdminUidByEmail(normalized);
     }
-    // If status === "active": admin_uids will be re-seeded on next login.
-    // We cannot re-seed here because we don't have the UID, only the email.
   },
 
   // ─────────────────────────────────────────────────────────────────
   // 5. removeTeamAccess(email)
-  //
-  // REVOCATION PATH — permanent removal:
-  //   Deletes BOTH team_access/{email} AND admin_uids/{uid} atomically.
-  //   The removed member loses list access the moment this call completes.
   // ─────────────────────────────────────────────────────────────────
   async removeTeamAccess(email: string, userId?: string): Promise<void> {
     const normalized = this.normalizeEmail(email);
     try {
-      await fetch("/api/admin/role", {
+      const headers = await this.getAuthHeaders();
+      const res = await fetch("/api/admin/role", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ targetEmail: normalized, role: "member", userId }),
       });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to revoke role via API.");
+      }
     } catch (apiErr) {
       console.warn("[teamAccessService] API role endpoint notice:", apiErr);
+      throw apiErr;
     }
 
     try {

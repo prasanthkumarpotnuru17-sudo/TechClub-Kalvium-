@@ -24,13 +24,20 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Timestamp } from "firebase/firestore";
 
+import { auth } from "@/lib/firebase";
+import { isSuperAdmin as checkIsSuperAdmin, canDeleteUser, canManageRoles, canPromoteToSuperAdmin } from "@/lib/permissions";
+
 interface UsersViewProps {
   onOpenProfileModal: (usr: UserItem) => void;
 }
 
 export function UsersView({ onOpenProfileModal }: UsersViewProps) {
   const { role: currentUserRole, user: currentUser } = useAuth();
-  const isSuperAdmin = ["super_admin", "admin", "coordinator"].includes((currentUserRole || (currentUser as any)?.role || "").toLowerCase());
+  const userEffectiveRole = currentUserRole || (currentUser as any)?.role || "member";
+  const isSuperAdmin = checkIsSuperAdmin(userEffectiveRole);
+  const userCanDelete = canDeleteUser(userEffectiveRole);
+  const userCanManageRoles = canManageRoles(userEffectiveRole);
+  const userCanPromoteSuperAdmin = canPromoteToSuperAdmin(userEffectiveRole);
   const currentEmail = (currentUser?.email ?? "").toLowerCase();
 
   const [usersList, setUsersList] = useState<UserItem[]>([]);
@@ -120,13 +127,18 @@ export function UsersView({ onOpenProfileModal }: UsersViewProps) {
   };
 
   const handleDeleteUser = async (id: string, email: string) => {
+    if (!userCanDelete) {
+      alert("Forbidden: Only a Super Admin can delete user accounts.");
+      return;
+    }
     if ((email ?? "").toLowerCase() === currentEmail) {
       alert("You cannot delete your own account.");
       return;
     }
-    if (confirm("Delete this user account permanently? This removes them from the Firestore users collection.")) {
+    if (confirm(`Permanently delete user account (${email})? This removes them from Firestore and Firebase Auth.`)) {
       try {
-        await userService.deleteUser(id);
+        const idToken = auth.currentUser ? await auth.currentUser.getIdToken() : undefined;
+        await userService.deleteUser(id, email, idToken);
       } catch (err) {
         alert("Delete failed: " + (err as Error).message);
       }
@@ -136,6 +148,11 @@ export function UsersView({ onOpenProfileModal }: UsersViewProps) {
   const handleGrantAccess = async () => {
     const { user, newRole } = confirmModal;
     if (!user || !newRole) return;
+    if (newRole === "super_admin" && !userCanPromoteSuperAdmin) {
+      alert("Forbidden: Only an existing Super Admin can promote another user to Super Admin.");
+      setConfirmModal({ isOpen: false, user: null, newRole: null });
+      return;
+    }
     try {
       console.log(`[Admin Flow] Changing role to ${newRole} for ${user.email}`);
       
@@ -166,6 +183,10 @@ export function UsersView({ onOpenProfileModal }: UsersViewProps) {
     e.preventDefault();
     const targetEmail = addEmail.trim();
     if (!targetEmail) return;
+    if (addRole === "super_admin" && !userCanPromoteSuperAdmin) {
+      alert("Forbidden: Only an existing Super Admin can assign the Super Admin role.");
+      return;
+    }
     try {
       const matchingUser = usersList.find((u) => u.email.toLowerCase() === targetEmail.toLowerCase());
       await teamAccessService.addOrUpdateTeamAccess(targetEmail, addRole, matchingUser?.id);
@@ -182,6 +203,10 @@ export function UsersView({ onOpenProfileModal }: UsersViewProps) {
 
   const handleEditTeamRole = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (editRoleModal.role === "super_admin" && !userCanPromoteSuperAdmin) {
+      alert("Forbidden: Only an existing Super Admin can assign the Super Admin role.");
+      return;
+    }
     try {
       const matchingUser = usersList.find((u) => u.email.toLowerCase() === editRoleModal.email.toLowerCase());
       await teamAccessService.updateRole(editRoleModal.email, editRoleModal.role, matchingUser?.id);
@@ -389,12 +414,20 @@ export function UsersView({ onOpenProfileModal }: UsersViewProps) {
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-2 flex-wrap">
-                        {isSuperAdmin && (
+                        {userCanManageRoles && (
                           <div className="relative group/dropdown">
                             <button className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 transition-colors">
                               Grant Admin Access
                             </button>
                             <div className="absolute right-0 top-full mt-1 w-32 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg opacity-0 invisible group-hover/dropdown:opacity-100 group-hover/dropdown:visible transition-all z-10 flex flex-col overflow-hidden">
+                              {userCanPromoteSuperAdmin && (
+                                <button
+                                  onClick={() => setConfirmModal({ isOpen: true, user: u, newRole: "super_admin" })}
+                                  className="px-4 py-2 text-left text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 cursor-pointer border-b border-gray-100 dark:border-gray-700"
+                                >
+                                  Super Admin
+                                </button>
+                              )}
                               <button
                                 onClick={() => setConfirmModal({ isOpen: true, user: u, newRole: "coordinator" })}
                                 className="px-4 py-2 text-left text-xs font-semibold hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
@@ -435,7 +468,7 @@ export function UsersView({ onOpenProfileModal }: UsersViewProps) {
                         >
                           <Ban className="w-4 h-4" />
                         </button>
-                        {isSuperAdmin && (
+                        {userCanDelete && (
                           <button
                             onClick={() => handleDeleteUser(u.id, u.email)}
                             disabled={(u.email ?? "").toLowerCase() === currentEmail}

@@ -90,6 +90,7 @@ export function Header({
     attendance: "Attendance & QR Verification",
     certificates: "Certificates & Digital Credentials",
     announcements: "Announcements & Broadcasts",
+    community_chat: "Community Chat & Tasks",
     contact_messages: "Contact Messages & Inquiries",
     analytics: "Interactive Analytics",
     reports: "Executive Reports & Audit Center",

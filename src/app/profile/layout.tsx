@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { 
-  User as UserIcon, Calendar, Award, Bell, Settings, LogOut, ChevronDown 
+  User as UserIcon, Calendar, Award, Bell, Settings, LogOut, ChevronDown, MessageSquare 
 } from "lucide-react";
 import { AuthProvider } from "@/context/AuthContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -61,6 +61,7 @@ function ProfileLayoutContent({ children }: { children: React.ReactNode }) {
     { label: "Profile Overview", href: "/profile", icon: UserIcon },
     { label: "My Events", href: "/profile/events", icon: Calendar },
     { label: "Certificates", href: "/profile/certificates", icon: Award },
+    { label: "Community Chat", href: "/profile/chat", icon: MessageSquare },
     { label: "Notifications", href: "/profile/notifications", icon: Bell, badge: notificationCount > 0 ? notificationCount : undefined },
     { label: "Settings", href: "/profile/settings", icon: Settings },
   ];
