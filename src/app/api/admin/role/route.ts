@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDb, isAdminSdkConfigured } from "@/lib/firebaseAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -69,7 +68,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Firebase Admin SDK runtime verification
+    // 4. Safely load Firebase Admin SDK dynamically
+    const { adminAuth, adminDb, isAdminSdkConfigured } = await import("@/lib/firebaseAdmin");
+
     console.log("[ROLE API] STEP 4 - Firebase Admin runtime check", {
       projectIdConfigured: Boolean(process.env.FIREBASE_PROJECT_ID),
       clientEmailConfigured: Boolean(process.env.FIREBASE_CLIENT_EMAIL),

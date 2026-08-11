@@ -214,10 +214,11 @@ export const teamAccessService = {
     const contentType = res.headers.get("content-type") || "";
     if (!contentType.includes("application/json")) {
       const text = await res.text();
-      const preview = text.slice(0, 200);
-      throw new Error(
-        `Role API returned non-JSON response (${res.status}): ${preview}`
-      );
+      let message = `Role API server returned status ${res.status}.`;
+      if (res.status === 500 || text.includes("__next_error__")) {
+        message = `Server Configuration Notice (${res.status}): Firebase credentials not initialized on Vercel. Please check Vercel Settings -> Environment Variables (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY) and Redeploy.`;
+      }
+      throw new Error(message);
     }
 
     const data = await res.json();
