@@ -1,94 +1,279 @@
 rules_version = '2';
 service cloud.firestore {
-  match /databases/{database}/documents {
+match /databases/{database}/documents {
 
-    // ═══════════════════════════════════════════════════════════════
-    // AUTHORIZATION & SECURITY RULES
-    // ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// AUTHORIZATION ARCHITECTURE
+// ═══════════════════════════════════════════════════════════════
+//
+// Source of truth for roles: team_access/{email}
+//   - Document ID  = lowercase email
+//   - Fields       = role, status, createdAt, updatedAt
+//   - Roles        = "super_admin" | "admin" | "coordinator"
+//   - Non-members  = no document exists → defaults to "member"
+//
+// The users collection is PROFILE-ONLY. users.role is IGNORED
+// by all security rules.
+// ═══════════════════════════════════════════════════════════════
 
-    function isAuthenticated() {
-      return request.auth != null;
-    }
+function isAuthenticated() {
+  return request.auth != null;
+}
 
-    // ───────────────────────────────────────────────────────────────
-    // COLLECTIONS
-    // ───────────────────────────────────────────────────────────────
+function isOwner(userId) {
+  return isAuthenticated() && request.auth.uid == userId;
+}
 
-    match /admin_uids/{uid} {
-      allow read, write: if true;
-    }
+function isAdmin() {
+  return isAuthenticated()
+    && 'email' in request.auth.token
+    && exists(/databases/$(database)/documents/team_access/$(request.auth.token.email))
+    && get(/databases/$(database)/documents/team_access/$(request.auth.token.email)).data.status == 'active'
+    && get(/databases/$(database)/documents/team_access/$(request.auth.token.email)).data.role in ['super_admin', 'admin', 'coordinator'];
+}
 
-    match /users/{userId} {
-      allow read, write: if true;
-    }
+function isSuperAdmin() {
+  return isAuthenticated()
+    && 'email' in request.auth.token
+    && exists(/databases/$(database)/documents/team_access/$(request.auth.token.email))
+    && get(/databases/$(database)/documents/team_access/$(request.auth.token.email)).data.status == 'active'
+    && get(/databases/$(database)/documents/team_access/$(request.auth.token.email)).data.role == 'super_admin';
+}
 
-    match /profiles/{userId} {
-      allow read, write: if true;
-    }
+// Check if user is a seeded/validated admin by UID
+function isAdminUid() {
+  return isAuthenticated()
+    && exists(/databases/$(database)/documents/admin_uids/$(request.auth.uid));
+}
 
-    match /events/{eventId} {
-      allow read, write: if true;
-    }
+// Community Chat access is restricted strictly to active team management roles
+function hasChatAccess() {
+  return isAdmin();
+}
 
-    match /registrations/{registrationId} {
-      allow read, write: if true;
-    }
+// ───────────────────────────────────────────────────────────────
+// admin_uids  —  UID whitelist (seeded automatically on login)
+// ───────────────────────────────────────────────────────────────
+match /admin_uids/{uid} {
+  allow read:   if isAuthenticated();
+  allow create, update: if isAuthenticated()
+    && request.auth.uid == uid
+    && isAdmin();
+  allow delete: if isSuperAdmin();
+}
 
-    match /contact_messages/{messageId} {
-      allow read, write: if true;
-    }
+// ───────────────────────────────────────────────────────────────
+// users  —  profile documents only
+// ───────────────────────────────────────────────────────────────
+match /users/{userId} {
+  allow get:            if isAuthenticated();
+  allow list:           if isAdmin();
+  // Protect member flags from self-promotion
+  allow create: if isOwner(userId)
+    && request.resource.data.get('isTechClubMember', false) == false
+    && request.resource.data.get('isClubMember', false) == false
+    || isAdmin();
+  allow update: if isOwner(userId)
+    && (
+      request.resource.data.get('isTechClubMember', false) == resource.data.get('isTechClubMember', false)
+      && request.resource.data.get('isClubMember', false) == resource.data.get('isClubMember', false)
+      || isAdmin()
+    );
+  allow delete:         if isSuperAdmin(); // Super Admin Only
+}
 
-    match /notification_logs/{logId} {
-      allow read, write: if true;
-    }
+// ───────────────────────────────────────────────────────────────
+// profiles  —  extended profile data
+// ───────────────────────────────────────────────────────────────
+match /profiles/{userId} {
+  allow get:            if isAuthenticated();
+  allow list:           if isAdmin();
+  // Protect member flags from self-promotion
+  allow create: if isOwner(userId)
+    && request.resource.data.get('isTechClubMember', false) == false
+    && request.resource.data.get('isClubMember', false) == false
+    || isAdmin();
+  allow update: if isOwner(userId)
+    && (
+      request.resource.data.get('isTechClubMember', false) == resource.data.get('isTechClubMember', false)
+      && request.resource.data.get('isClubMember', false) == resource.data.get('isClubMember', false)
+      || isAdmin()
+    );
+  allow delete:         if isSuperAdmin(); // Super Admin Only
+}
 
-    match /system/{docId} {
-      allow read, write: if true;
-    }
+// ───────────────────────────────────────────────────────────────
+// events  —  public read, admin write
+// ───────────────────────────────────────────────────────────────
+match /events/{eventId} {
+  allow read:                   if true;
+  allow create, update, delete: if isAdmin();
+}
 
-    match /certificates/{certificateId} {
-      allow read, write: if true;
-    }
+// ───────────────────────────────────────────────────────────────
+// registrations  —  users own their registrations
+// ───────────────────────────────────────────────────────────────
+match /registrations/{registrationId} {
+  // Allow user to get registration by matching UID OR email
+  allow get: if isAuthenticated() && (
+    resource.data.userId == request.auth.uid ||
+    ('email' in request.auth.token && (resource.data.email == request.auth.token.email || resource.data.userEmail == request.auth.token.email)) ||
+    isAdmin()
+  );
 
-    match /certificate_templates/{templateId} {
-      allow read, write: if true;
-    }
+  // Authenticated users can query registrations (filtered by their userId/email)
+  allow list: if isAuthenticated();
 
-    match /notifications/{notificationId} {
-      allow read, write: if true;
-    }
+  // Any authenticated user can create a registration
+  allow create: if isAuthenticated();
 
-    match /announcements/{announcementId} {
-      allow read, write: if true;
-    }
+  // Users can update their own registration (edit details / re-upload / cancel)
+  allow update: if isAuthenticated() && (
+    resource.data.userId == request.auth.uid ||
+    ('email' in request.auth.token && (resource.data.email == request.auth.token.email || resource.data.userEmail == request.auth.token.email)) ||
+    isAdmin()
+  );
 
-    match /gallery/{galleryId} {
-      allow read, write: if true;
-    }
+  // Only admins can delete registrations
+  allow delete: if isAdmin();
+}
 
-    match /teams/{teamId} {
-      allow read, write: if true;
-    }
+// ───────────────────────────────────────────────────────────────
+// certificate_templates  —  certificate designs
+// ───────────────────────────────────────────────────────────────
+match /certificate_templates/{templateId} {
+  allow get, list:              if isAdmin();
+  allow create, update, delete: if isAdmin();
+}
 
-    match /activity_logs/{logId} {
-      allow read, write: if true;
-    }
+// ───────────────────────────────────────────────────────────────
+// certificates  —  issued certificates
+// ───────────────────────────────────────────────────────────────
+match /certificates/{certificateId} {
+  // User can read their own certificate by UID or email
+  allow get: if isAuthenticated() && (
+    resource.data.userId == request.auth.uid ||
+    ('email' in request.auth.token && (resource.data.recipientEmail == request.auth.token.email || resource.data.email == request.auth.token.email)) ||
+    isAdmin()
+  );
+  allow list:           if isAuthenticated();
+  allow create, update: if isAdmin();
+  allow delete:         if isSuperAdmin();
+}
 
-    match /team_access/{email} {
-      allow read, write: if true;
-    }
+// ───────────────────────────────────────────────────────────────
+// payments  —  payment verification records
+// ───────────────────────────────────────────────────────────────
+match /payments/{paymentId} {
+  // User can read their own payment status record
+  allow get: if isAuthenticated() && (
+    resource.data.userId == request.auth.uid ||
+    ('email' in request.auth.token && (resource.data.studentEmail == request.auth.token.email || resource.data.email == request.auth.token.email)) ||
+    isAdmin()
+  );
+  allow list:   if isAuthenticated();
+  allow create: if isAuthenticated();
 
-    match /payments/{paymentId} {
-      allow read, write: if true;
-    }
+  // Users can update their own payment record (re-submitting proof)
+  allow update: if isAuthenticated() && (
+    resource.data.userId == request.auth.uid ||
+    ('email' in request.auth.token && (resource.data.studentEmail == request.auth.token.email || resource.data.email == request.auth.token.email)) ||
+    isAdmin()
+  );
 
-    match /platform_stats/{docId} {
-      allow read, write: if true;
-    }
+  allow delete: if isSuperAdmin();
+}
 
-    // Fallback for any nested or missing documents
-    match /{document=**} {
-      allow read, write: if true;
-    }
-  }
+// ───────────────────────────────────────────────────────────────
+// notifications / announcements  —  public read, admin write
+// ───────────────────────────────────────────────────────────────
+match /notifications/{notificationId} {
+  allow read:                   if true;
+  allow create, update, delete: if isAdmin();
+}
+
+match /announcements/{announcementId} {
+  allow read:                   if true;
+  allow create, update, delete: if isAdmin();
+}
+
+// ───────────────────────────────────────────────────────────────
+// gallery  —  public read, admin write
+// ───────────────────────────────────────────────────────────────
+match /gallery/{galleryId} {
+  allow read:                   if true;
+  allow create, update, delete: if isAdmin();
+}
+
+// ───────────────────────────────────────────────────────────────
+// teams  —  public club roster
+// ───────────────────────────────────────────────────────────────
+match /teams/{teamId} {
+  allow read:                   if true;
+  allow create, update, delete: if isAdmin();
+}
+
+// ───────────────────────────────────────────────────────────────
+// activity_logs  —  admin read, authenticated write
+// ───────────────────────────────────────────────────────────────
+match /activity_logs/{logId} {
+  allow read:           if isAdmin();
+  allow create:         if isAuthenticated();
+  allow update, delete: if isAdmin();
+}
+
+// ───────────────────────────────────────────────────────────────
+// team_access  —  authoritative role store
+// ───────────────────────────────────────────────────────────────
+match /team_access/{email} {
+  allow get:            if isAuthenticated();
+  allow list:           if isAdminUid();
+  allow create, update: if isSuperAdmin();
+  allow delete:         if isSuperAdmin();
+}
+
+// ───────────────────────────────────────────────────────────────
+// contact_messages  —  public create, admin manage
+// ───────────────────────────────────────────────────────────────
+match /contact_messages/{messageId} {
+  allow create:         if true;
+  allow get, list:      if isAdmin();
+  allow update:         if isAdmin();
+  allow delete:         if isSuperAdmin();
+}
+
+// ───────────────────────────────────────────────────────────────
+// platform_stats  —  admin read, super admin write
+// ───────────────────────────────────────────────────────────────
+match /platform_stats/{docId} {
+  allow read:  if isAdmin();
+  allow write: if isSuperAdmin();
+}
+
+// ───────────────────────────────────────────────────────────────
+// community_chats  —  authenticated read, member write/admin manage
+// ───────────────────────────────────────────────────────────────
+match /community_chats/{messageId} {
+  allow read:           if hasChatAccess();
+  
+  allow create:         if hasChatAccess()
+    && (request.resource.data.get('type', 'text') != 'task' || isSuperAdmin())
+    && request.resource.data.senderId == request.auth.uid
+    && request.resource.data.senderEmail == request.auth.token.email;
+    
+  allow update:         if isAuthenticated() && (
+    resource.data.senderId == request.auth.uid || isSuperAdmin()
+  ) && (
+    // Only allow soft deletes, message content and type cannot be altered
+    request.resource.data.get('isDeleted', false) == true
+    && request.resource.data.get('message', '') == resource.data.get('message', '')
+    && request.resource.data.get('type', 'text') == resource.data.get('type', 'text')
+  );
+  
+  allow delete:         if isAuthenticated() && (
+    resource.data.senderId == request.auth.uid || isSuperAdmin()
+  );
+}
+
+}
 }
