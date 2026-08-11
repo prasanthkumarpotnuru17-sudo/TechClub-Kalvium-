@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { adminDb, isAdminSdkConfigured } from "@/lib/firebaseAdmin";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   if (!isAdminSdkConfigured || !adminDb) {
     return NextResponse.json({

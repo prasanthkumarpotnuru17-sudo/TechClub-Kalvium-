@@ -5,6 +5,9 @@ import { doc, getDocs, collection, deleteDoc } from "firebase/firestore";
 import { safeSetDoc, safeUpdateDoc, removeUndefinedFields } from "@/lib/firestoreUtils";
 import { notificationService } from "@/services/notificationService";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 // Server-side in-memory cache to ensure zero data loss during dev session
 const localContactMessagesMap = new Map<string, any>();
 

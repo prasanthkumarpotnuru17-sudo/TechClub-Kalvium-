@@ -8,6 +8,9 @@ import { FieldValue } from "firebase-admin/firestore";
 import { sendNotification } from "@/lib/notificationDispatcher";
 import { NotificationType } from "@/types/notificationTypes";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/admin/payments
  * 100% Read-Only fetch of payment documents from the "payments" collection.

@@ -3,6 +3,9 @@ import { adminDb, isAdminSdkConfigured } from "@/lib/firebaseAdmin";
 import { db as clientDb } from "@/lib/firebase";
 import { getDocs, collection } from "firebase/firestore";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const events: any[] = [];
