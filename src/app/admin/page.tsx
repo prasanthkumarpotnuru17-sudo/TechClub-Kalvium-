@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { MessageSquare } from "lucide-react";
 import { Sidebar, AdminTab } from "@/components/admin/Sidebar";
 import { Header } from "@/components/admin/Header";
 import { DashboardOverview } from "@/components/admin/views/DashboardOverview";
@@ -200,6 +201,7 @@ export default function AdminPage() {
           setDarkMode={setDarkMode}
           onMobileMenuOpen={() => setMobileMenuOpen(true)}
           onOpenQuickAction={handleQuickAction}
+          onSelectTab={setActiveTab}
         />
 
         {/* View Content */}
@@ -313,6 +315,22 @@ export default function AdminPage() {
       />
 
       <UserProfileModal user={profileUser} onClose={() => setProfileUser(null)} />
+
+      {/* Floating Quick Community Chat Button */}
+      {activeTab !== "community_chat" && (
+        <button
+          onClick={() => setActiveTab("community_chat")}
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium text-xs md:text-sm rounded-full shadow-lg shadow-blue-500/30 active:scale-95 transition-all cursor-pointer group"
+          title="Quick Access Community Chat"
+        >
+          <div className="relative">
+            <MessageSquare className="w-5 h-5 transition-transform group-hover:scale-110" />
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full ring-2 ring-blue-600 animate-ping" />
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full ring-2 ring-blue-600" />
+          </div>
+          <span className="font-semibold tracking-wide">Community Chat</span>
+        </button>
+      )}
     </div>
   );
 }

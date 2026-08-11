@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Search,
   Moon,
@@ -16,7 +16,8 @@ import {
   LogOut,
   ExternalLink,
   ShieldCheck,
-  Check
+  Check,
+  MessageSquare
 } from "lucide-react";
 import { AdminTab } from "./Sidebar";
 import { NotificationItem } from "@/lib/services/mockData";
@@ -32,6 +33,7 @@ interface HeaderProps {
   onMobileMenuOpen: () => void;
   onOpenQuickAction: (action: "create-event" | "add-opportunity" | "send-notification" | "add-team" | "export-registrations") => void;
   onSearchChange?: (query: string) => void;
+  onSelectTab?: (tab: AdminTab) => void;
 }
 
 export function Header({
@@ -41,6 +43,7 @@ export function Header({
   onMobileMenuOpen,
   onOpenQuickAction,
   onSearchChange,
+  onSelectTab,
 }: HeaderProps) {
   const { user, role, logout } = useAuth();
   const [showQuickMenu, setShowQuickMenu] = useState(false);
@@ -48,6 +51,43 @@ export function Header({
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  const quickMenuRef = useRef<HTMLDivElement>(null);
+  const notifMenuRef = useRef<HTMLDivElement>(null);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node;
+      if (quickMenuRef.current && !quickMenuRef.current.contains(target)) {
+        setShowQuickMenu(false);
+      }
+      if (notifMenuRef.current && !notifMenuRef.current.contains(target)) {
+        setShowNotifMenu(false);
+      }
+      if (profileMenuRef.current && !profileMenuRef.current.contains(target)) {
+        setShowProfileMenu(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowQuickMenu(false);
+        setShowNotifMenu(false);
+        setShowProfileMenu(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
 
   // Derive display values from live auth data
   const displayName = user?.name || user?.email?.split("@")[0] || "Admin";
@@ -140,7 +180,7 @@ export function Header({
         </div>
 
         {/* Quick Actions Dropdown Button */}
-        <div className="relative">
+        <div className="relative" ref={quickMenuRef}>
           <button
             onClick={() => {
               setShowQuickMenu(!showQuickMenu);
@@ -216,13 +256,45 @@ export function Header({
                   <UserPlus className="w-4 h-4 mr-2.5 text-indigo-500" />
                   Add Team Member
                 </button>
+                <button
+                  onClick={() => {
+                    setShowQuickMenu(false);
+                    if (onSelectTab) onSelectTab("community_chat");
+                  }}
+                  className="flex items-center w-full px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-sky-50 dark:hover:bg-sky-950/60 hover:text-sky-600 dark:hover:text-sky-400 rounded-xl transition-colors"
+                >
+                  <MessageSquare className="w-4 h-4 mr-2.5 text-sky-500" />
+                  Community Chat & Tasks
+                </button>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
+        {/* Community Chat Message Icon */}
+        <button
+          onClick={() => {
+            setShowQuickMenu(false);
+            setShowNotifMenu(false);
+            setShowProfileMenu(false);
+            if (onSelectTab) onSelectTab("community_chat");
+          }}
+          className={cn(
+            "relative p-2 rounded-xl transition-colors cursor-pointer group",
+            activeTab === "community_chat"
+              ? "bg-blue-100 dark:bg-blue-950/70 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
+              : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+          )}
+          title="Open Community Chat & Live Messages"
+          aria-label="Community Chat & Messages"
+        >
+          <MessageSquare className="w-5 h-5 transition-transform group-hover:scale-105" />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 rounded-full ring-2 ring-white dark:ring-gray-900" />
+        </button>
+
         {/* Notifications Popover */}
-        <div className="relative">
+        <div className="relative" ref={notifMenuRef}>
           <button
             onClick={() => {
               setShowNotifMenu(!showNotifMenu);
@@ -300,7 +372,7 @@ export function Header({
         </button>
 
         {/* User Profile Dropdown */}
-        <div className="relative">
+        <div className="relative" ref={profileMenuRef}>
           <button
             onClick={() => {
               setShowProfileMenu(!showProfileMenu);
