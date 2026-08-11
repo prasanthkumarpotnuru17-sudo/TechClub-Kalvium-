@@ -197,6 +197,38 @@ export const teamAccessService = {
   },
 
   // ─────────────────────────────────────────────────────────────────
+  // Helper: callRoleApi with safe content-type verification
+  // ─────────────────────────────────────────────────────────────────
+  async callRoleApi(payload: { targetEmail: string; role: string; userId?: string }): Promise<any> {
+    const headers = await this.getAuthHeaders();
+    const res = await fetch("/api/admin/role", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        targetEmail: this.normalizeEmail(payload.targetEmail),
+        role: payload.role,
+        userId: payload.userId,
+      }),
+    });
+
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      const text = await res.text();
+      const preview = text.slice(0, 200);
+      throw new Error(
+        `Role API returned non-JSON response (${res.status}): ${preview}`
+      );
+    }
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || `Role API error (${res.status})`);
+    }
+
+    return data;
+  },
+
+  // ─────────────────────────────────────────────────────────────────
   // 2. addOrUpdateTeamAccess(email, role, userId?)
   // ─────────────────────────────────────────────────────────────────
   async addOrUpdateTeamAccess(
@@ -206,16 +238,7 @@ export const teamAccessService = {
   ): Promise<void> {
     const normalized = this.normalizeEmail(email);
     try {
-      const headers = await this.getAuthHeaders();
-      const res = await fetch("/api/admin/role", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ targetEmail: normalized, role, userId }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to update role via API.");
-      }
+      await this.callRoleApi({ targetEmail: normalized, role, userId });
     } catch (apiErr) {
       console.warn("[teamAccessService] API role endpoint notice:", apiErr);
       throw apiErr;
@@ -248,16 +271,7 @@ export const teamAccessService = {
   ): Promise<void> {
     const normalized = this.normalizeEmail(email);
     try {
-      const headers = await this.getAuthHeaders();
-      const res = await fetch("/api/admin/role", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ targetEmail: normalized, role, userId }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to update role via API.");
-      }
+      await this.callRoleApi({ targetEmail: normalized, role, userId });
     } catch (apiErr) {
       console.warn("[teamAccessService] API role endpoint notice:", apiErr);
       throw apiErr;
@@ -294,16 +308,7 @@ export const teamAccessService = {
   async removeTeamAccess(email: string, userId?: string): Promise<void> {
     const normalized = this.normalizeEmail(email);
     try {
-      const headers = await this.getAuthHeaders();
-      const res = await fetch("/api/admin/role", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ targetEmail: normalized, role: "member", userId }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to revoke role via API.");
-      }
+      await this.callRoleApi({ targetEmail: normalized, role: "member", userId });
     } catch (apiErr) {
       console.warn("[teamAccessService] API role endpoint notice:", apiErr);
       throw apiErr;
