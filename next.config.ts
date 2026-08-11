@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["firebase-admin", "jwks-rsa", "jose"],
+  // Allow Webpack to handle bundling of auth helpers if needed
 };
 
 export default nextConfig;
+

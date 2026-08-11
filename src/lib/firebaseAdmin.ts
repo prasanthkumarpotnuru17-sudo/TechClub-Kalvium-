@@ -1,7 +1,7 @@
 import { initializeApp, getApps, cert, getApp, App, applicationDefault } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
-import { getAuth, Auth } from "firebase-admin/auth";
-import { getStorage, Storage } from "firebase-admin/storage";
+import type { Auth } from "firebase-admin/auth";
+import type { Storage } from "firebase-admin/storage";
 
 let serviceAccountJson: any = null;
 if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
@@ -109,14 +109,17 @@ if (adminApp) {
     console.error("[Firebase Admin] Failed to initialize Firestore:", e);
   }
   try {
+    // Dynamic import to prevent top-level ERR_REQUIRE_ESM failure on Vercel
+    const { getAuth } = require("firebase-admin/auth");
     adminAuthInstance = getAuth(adminApp);
   } catch (e) {
-    console.error("[Firebase Admin] Failed to initialize Auth:", e);
+    console.warn("[Firebase Admin] Auth module initialization skipped or caught:", e instanceof Error ? e.message : e);
   }
   try {
+    const { getStorage } = require("firebase-admin/storage");
     adminStorageInstance = getStorage(adminApp);
   } catch (e) {
-    console.error("[Firebase Admin] Failed to initialize Storage:", e);
+    console.warn("[Firebase Admin] Storage module initialization skipped or caught:", e instanceof Error ? e.message : e);
   }
 }
 
