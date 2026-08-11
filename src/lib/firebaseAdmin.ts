@@ -21,7 +21,15 @@ function formatPrivateKey(key?: string): string | undefined {
   ) {
     normalized = normalized.slice(1, -1).trim();
   }
-  return normalized.replace(/\\n/g, "\n");
+  normalized = normalized.replace(/\r\n/g, "\n").replace(/\\n/g, "\n");
+
+  if (!normalized.includes("-----BEGIN PRIVATE KEY-----")) {
+    normalized = `-----BEGIN PRIVATE KEY-----\n${normalized}`;
+  }
+  if (!normalized.includes("-----END PRIVATE KEY-----")) {
+    normalized = `${normalized}\n-----END PRIVATE KEY-----`;
+  }
+  return normalized;
 }
 
 const projectId = serviceAccountJson?.project_id || process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
@@ -71,15 +79,10 @@ function getAdminApp(): App | null {
       }
     }
 
-    // Mode 3: Missing credentials — log explicit server warning
     if (typeof window === "undefined") {
       console.warn(
         "[Firebase Admin] Service Account credentials not configured.\n" +
-        "To enable server-side Admin SDK operations:\n" +
-        "  1) Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY in .env.local\n" +
-        "  OR\n" +
-        "  2) Set GOOGLE_APPLICATION_CREDENTIALS path in .env.local\n" +
-        "  Then restart the Next.js dev server (npm run dev)."
+        "Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY in Vercel environment variables."
       );
     }
   } catch (globalErr) {
