@@ -156,20 +156,14 @@ export function UsersView({ onOpenProfileModal }: UsersViewProps) {
     try {
       console.log(`[Admin Flow] Changing role to ${newRole} for ${user.email}`);
       
-      // 1. Authoritative access provisioning/revocation
+      // 1. Authoritative access provisioning/revocation via server API
       if (newRole === "member") {
         await teamAccessService.removeTeamAccess(user.email, user.id);
-        console.log(`[Admin Flow] team_access document removed successfully (demoted to member).`);
+        console.log(`[Admin Flow] team_access & users document updated via server API (demoted to member).`);
       } else {
         await teamAccessService.addOrUpdateTeamAccess(user.email, newRole as "super_admin" | "admin" | "coordinator", user.id);
-        console.log(`[Admin Flow] team_access document created/updated successfully.`);
+        console.log(`[Admin Flow] team_access & users document updated via server API.`);
       }
-      
-      // 2. Legacy UI consistency (so the members table reflects the change)
-      if (user.id) {
-        await userService.updateUserRole(user.id, newRole);
-      }
-      console.log(`[Admin Flow] users document role updated.`);
     } catch (err) {
       console.error("[Admin Flow] Error granting access:", err);
       alert("Failed to grant access: " + (err as Error).message);
@@ -190,9 +184,6 @@ export function UsersView({ onOpenProfileModal }: UsersViewProps) {
     try {
       const matchingUser = usersList.find((u) => u.email.toLowerCase() === targetEmail.toLowerCase());
       await teamAccessService.addOrUpdateTeamAccess(targetEmail, addRole, matchingUser?.id);
-      if (matchingUser) {
-        await userService.updateUserRole(matchingUser.id, addRole);
-      }
       setIsAddModalOpen(false);
       setAddEmail("");
       setAddRole("coordinator");
@@ -210,9 +201,6 @@ export function UsersView({ onOpenProfileModal }: UsersViewProps) {
     try {
       const matchingUser = usersList.find((u) => u.email.toLowerCase() === editRoleModal.email.toLowerCase());
       await teamAccessService.updateRole(editRoleModal.email, editRoleModal.role, matchingUser?.id);
-      if (matchingUser) {
-        await userService.updateUserRole(matchingUser.id, editRoleModal.role);
-      }
       setEditRoleModal({ isOpen: false, email: "", role: "coordinator" });
     } catch (err) {
       alert("Failed to update role: " + (err as Error).message);

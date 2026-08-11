@@ -105,17 +105,18 @@ export const userService = {
     return this.deduplicateAndCleanUsers(rawUsers);
   },
 
-  // Update user role in Firestore
-  async updateUserRole(id: string, role: string): Promise<void> {
-    try {
-      await updateDoc(doc(db, USERS_COLLECTION, id), { role, updatedAt: new Date().toISOString() });
-    } catch (err) {
-      console.warn("[userService] Client updateDoc notice for user role:", err);
-      try {
-        const { safeSetDoc } = await import("@/lib/firestoreUtils");
-        await safeSetDoc(doc(db, USERS_COLLECTION, id), { role, updatedAt: new Date().toISOString() }, { merge: true });
-      } catch (_) {}
+  // Role updates are handled strictly via POST /api/admin/role server API using Admin SDK.
+  async updateUserRole(id: string, role: string, email?: string): Promise<void> {
+    if (email) {
+      const { teamAccessService } = await import("@/services/teamAccessService");
+      if (role === "member") {
+        await teamAccessService.removeTeamAccess(email, id);
+      } else {
+        await teamAccessService.addOrUpdateTeamAccess(email, role as any, id);
+      }
+      return;
     }
+    console.warn("[userService] Role mutations are managed strictly via server API (/api/admin/role). Client update skipped.");
   },
 
   // Update user status (Active / Blocked)

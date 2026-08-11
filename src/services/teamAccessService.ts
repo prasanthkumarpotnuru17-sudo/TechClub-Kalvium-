@@ -237,28 +237,7 @@ export const teamAccessService = {
     userId?: string
   ): Promise<void> {
     const normalized = this.normalizeEmail(email);
-    try {
-      await this.callRoleApi({ targetEmail: normalized, role, userId });
-    } catch (apiErr) {
-      console.warn("[teamAccessService] API role endpoint notice:", apiErr);
-      throw apiErr;
-    }
-
-    try {
-      await setDoc(
-        doc(db, COLLECTION_NAME, normalized),
-        {
-          email: normalized,
-          role,
-          status: "active",
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-    } catch (clientErr) {
-      console.warn("[teamAccessService] Client setDoc notice (handled via server API):", clientErr);
-    }
+    await this.callRoleApi({ targetEmail: normalized, role, userId });
   },
 
   // ─────────────────────────────────────────────────────────────────
@@ -270,21 +249,7 @@ export const teamAccessService = {
     userId?: string
   ): Promise<void> {
     const normalized = this.normalizeEmail(email);
-    try {
-      await this.callRoleApi({ targetEmail: normalized, role, userId });
-    } catch (apiErr) {
-      console.warn("[teamAccessService] API role endpoint notice:", apiErr);
-      throw apiErr;
-    }
-
-    try {
-      await updateDoc(doc(db, COLLECTION_NAME, normalized), {
-        role,
-        updatedAt: serverTimestamp(),
-      });
-    } catch (clientErr) {
-      console.warn("[teamAccessService] Client updateDoc notice (handled via server API):", clientErr);
-    }
+    await this.callRoleApi({ targetEmail: normalized, role, userId });
   },
 
   // ─────────────────────────────────────────────────────────────────
@@ -307,19 +272,7 @@ export const teamAccessService = {
   // ─────────────────────────────────────────────────────────────────
   async removeTeamAccess(email: string, userId?: string): Promise<void> {
     const normalized = this.normalizeEmail(email);
-    try {
-      await this.callRoleApi({ targetEmail: normalized, role: "member", userId });
-    } catch (apiErr) {
-      console.warn("[teamAccessService] API role endpoint notice:", apiErr);
-      throw apiErr;
-    }
-
-    try {
-      await deleteDoc(doc(db, COLLECTION_NAME, normalized));
-      await revokeAdminUidByEmail(normalized);
-    } catch (clientErr) {
-      console.warn("[teamAccessService] Client deleteDoc notice (handled via server API):", clientErr);
-    }
+    await this.callRoleApi({ targetEmail: normalized, role: "member", userId });
   },
 
   // ─────────────────────────────────────────────────────────────────
