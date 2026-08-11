@@ -121,7 +121,7 @@ export const apiService = {
   },
 
   async updateUserRole(id: string, role: "Student" | "Volunteer" | "Admin"): Promise<void> {
-    await safeUpdateDoc(doc(db, "users", id), { role });
+    console.warn("[apiService] Role mutations are executed strictly server-side via POST /api/admin/role. Client update skipped.");
   },
 
   // Notifications API
