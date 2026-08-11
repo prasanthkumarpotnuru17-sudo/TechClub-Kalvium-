@@ -8,12 +8,14 @@ const serviceRoleKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
 if (!serviceRoleKey) {
-  console.error(
-    "[Supabase Admin] CRITICAL ERROR: SUPABASE_SERVICE_ROLE_KEY is undefined in process.env! Server uploads will fail RLS checks."
-  );
+  if (typeof window === "undefined" && process.env.NODE_ENV === "production") {
+    console.warn(
+      "[Supabase Admin] Notice: SUPABASE_SERVICE_ROLE_KEY is undefined in process.env. Set it in Vercel environment variables if certificate storage bypass is required."
+    );
+  }
 } else if (serviceRoleKey.startsWith("sb_publishable_")) {
-  console.error(
-    `[Supabase Admin] CRITICAL ERROR: SUPABASE_SERVICE_ROLE_KEY is set to a publishable key (${serviceRoleKey.slice(0, 15)}...) instead of a secret service role key! RLS policies will be enforced.`
+  console.warn(
+    `[Supabase Admin] Notice: SUPABASE_SERVICE_ROLE_KEY is set to a publishable key (${serviceRoleKey.slice(0, 15)}...).`
   );
 } else {
   console.log(
