@@ -335,10 +335,11 @@ export async function POST(req: NextRequest) {
       stack: error instanceof Error ? error.stack : undefined
     });
 
+    const detail = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
       {
         success: false,
-        error: "Internal role management error"
+        error: detail || "Internal role management error"
       },
       { status: 500 }
     );
