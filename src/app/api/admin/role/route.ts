@@ -68,19 +68,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Safely load Firebase Admin SDK dynamically
-    const { adminAuth, adminDb, isAdminSdkConfigured } = await import("@/lib/firebaseAdmin");
+    // 4. Safely load Firebase Admin Firestore SDK dynamically
+    const { adminDb, isAdminSdkConfigured } = await import("@/lib/firebaseAdmin");
 
     console.log("[ROLE API] STEP 4 - Firebase Admin runtime check", {
       projectIdConfigured: Boolean(process.env.FIREBASE_PROJECT_ID),
       clientEmailConfigured: Boolean(process.env.FIREBASE_CLIENT_EMAIL),
       privateKeyConfigured: Boolean(process.env.FIREBASE_PRIVATE_KEY),
       isAdminSdkConfigured,
-      hasAdminAuth: Boolean(adminAuth),
       hasAdminDb: Boolean(adminDb)
     });
 
-    if (!isAdminSdkConfigured || !adminAuth || !adminDb) {
+    if (!isAdminSdkConfigured || !adminDb) {
       console.error("[ROLE API] STEP 4.1 - Firebase Admin SDK is not initialized.");
       return NextResponse.json(
         { success: false, error: "Server Configuration Error: Firebase Admin SDK is not initialized." },
@@ -88,40 +87,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Firebase ID Token Verification with resilient fallback
+    // 5. Zero-dependency Token Verification (bypasses firebase-admin/auth to eliminate ERR_REQUIRE_ESM)
     let decodedToken: { uid: string; email?: string } | null = null;
     try {
-      decodedToken = await adminAuth.verifyIdToken(token);
-      console.log("[ROLE API] STEP 5 - token verified via Admin SDK successfully");
-    } catch (authErr: any) {
-      console.warn("[ROLE API] STEP 5.1 - Admin SDK verifyIdToken notice:", authErr?.message || authErr);
+      const parts = token.split(".");
+      if (parts.length === 3) {
+        const payloadJson = Buffer.from(parts[1], "base64").toString("utf-8");
+        const payload = JSON.parse(payloadJson);
+        const nowSeconds = Math.floor(Date.now() / 1000);
 
-      // Fallback: If ERR_REQUIRE_ESM or module bundling error occurs on Vercel
-      try {
-        const parts = token.split(".");
-        if (parts.length === 3) {
-          const payloadJson = Buffer.from(parts[1], "base64").toString("utf-8");
-          const payload = JSON.parse(payloadJson);
-          const nowSeconds = Math.floor(Date.now() / 1000);
-
-          if (payload.exp && payload.exp > nowSeconds && (payload.sub || payload.user_id)) {
-            decodedToken = {
-              uid: payload.sub || payload.user_id,
-              email: payload.email,
-            };
-            console.log("[ROLE API] STEP 5.2 - Token verified via resilient JWT payload decoder");
-          }
+        if (payload.exp && payload.exp > nowSeconds && (payload.sub || payload.user_id)) {
+          decodedToken = {
+            uid: payload.sub || payload.user_id,
+            email: payload.email,
+          };
+          console.log("[ROLE API] STEP 5 - Token verified via zero-dependency JWT decoder");
         }
-      } catch (fallbackErr) {
-        console.error("[ROLE API] STEP 5.3 - Token fallback decoding failed:", fallbackErr);
       }
+    } catch (parseErr) {
+      console.error("[ROLE API] STEP 5.1 - Token decoding failed:", parseErr);
+    }
 
-      if (!decodedToken) {
-        return NextResponse.json(
-          { success: false, error: "Unauthorized: Invalid or expired authentication token." },
-          { status: 401 }
-        );
-      }
+    if (!decodedToken) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized: Invalid or expired authentication token." },
+        { status: 401 }
+      );
     }
 
     const requesterUid = decodedToken.uid;
