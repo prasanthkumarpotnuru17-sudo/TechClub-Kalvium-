@@ -11,7 +11,7 @@ export function resolveN8nWebhookUrl(): string {
     process.env.NEXT_PUBLIC_N8N_WEBHOOK_URL ||
     process.env.N8N_WELCOME_WEBHOOK_URL ||
     process.env.N8N_EVENT_REGISTRATION_WEBHOOK_URL ||
-    "http://localhost:5678/webhook-test/techclub/notifications";
+    "http://localhost:5678/webhook/techclub/notifications";
 
   return url.trim();
 }

@@ -18,7 +18,7 @@ if (fs.existsSync(envPath)) {
   });
 }
 
-const webhookUrl = "https://prasanthkumarpotnuru17.app.n8n.cloud/webhook-test/techclub/notifications";
+const webhookUrl = process.env.N8N_WEBHOOK_URL || "http://localhost:5678/webhook/techclub/notifications";
 
 function generateCorrelationId() {
   const now = new Date();
